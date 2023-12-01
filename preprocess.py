@@ -21,7 +21,13 @@ def load_data(data_path):
     merged = incidents.merge(
         reports, left_on="INCIDENT_IDENTIFIER", right_on="INC_IDENTIFIER"
     )
-    return merged
+    #! Important: mean and sum lead to very different results for pivot table ie not unique
+    resources = pd.read_csv(os.path.join(input_path, "resources.csv")).rename(
+        columns={"report_id": "INC209R_IDENTIFIER"}
+    )
+
+    result = merged.merge(resources, on="INC209R_IDENTIFIER")
+    return result
 
 
 def create_features(df):
@@ -39,20 +45,24 @@ def create_features(df):
         "INCIDENT_IDENTIFIER": "fire_id",
         "INC209R_IDENTIFIER": "report_id",
         "year_y": "year",
+        "CURR_INCIDENT_AREA": "incident_area",
+        "INC209RU_IDENTIFIER": "resource_id",
+        "INC209R_IDENTIFIER": "report_id",
+        "RESOURCE_QUANTITY": "quantity",
+        "RESOURCE_PERSONNEL": "personnel",
         "CURR_INCIDENT_AREA": "area",
     }
     df = df.copy().rename(columns=col_map)
     # Time window select
     df = df[df["year"] > 2013]
     df = df.sort_values(by=["fire_id", "mean_report_date"])
-
     df["date"] = pd.to_datetime(df["mean_report_date"])
     # Time features
     df["report_number"] = df.groupby("fire_id").cumcount() + 1
-    df["prev_area"] = df.groupby("fire_id")["area"].shift(1)
-    df["next_area"] = df.groupby("fire_id")["area"].shift(-1)
-    df["prev_date"] = df.groupby("fire_id")["date"].shift(1)
-    df["next_date"] = df.groupby("fire_id")["date"].shift(-1)
+    df["prev_area"] = df.groupby("fire_id").shift(1)["area"]
+    df["next_area"] = df.groupby("fire_id").shift(-1)["area"]
+    df["prev_date"] = df.groupby("fire_id").shift(1)["date"]
+    df["next_date"] = df.groupby("fire_id").shift(-1)["date"]
     df["prev_date_diff"] = (df["date"] - df["prev_date"]).dt.total_seconds() / (
         24 * 3600
     )
@@ -64,10 +74,9 @@ def create_features(df):
     df["prev_derivate"] = df["prev_area_diff"] / df["prev_date_diff"]
     df["next_derivate"] = df["next_area_diff"] / df["next_date_diff"]
     df["will_grow"] = df["next_area_diff"] > 0
-    for target in ["next_area", "next_area_diff", "next_derivate"]:
-        transformations = [np.log1p, np.sqrt, np.square]
-        for transform in transformations:
-            df[f"{target}_{transform.__name__}"] = transform(df[target])
+    df["time_to_first_report"] = (
+        df["date"] - df.groupby("fire_id")["date"].transform("min")
+    ).dt.total_seconds() / (24 * 3600)
     return df
 
 
@@ -77,5 +86,5 @@ if __name__ == "__main__":
     df = load_data(input_path)
     print(f"Initial shape: {df.shape}")
     full_df = create_features(df)
-    print(f"Post preprocessing shape: {df.shape}")
-    full_df.to_csv(os.path.join(output_path, "dataset_1130.csv"))
+    print(f"Post preprocessing shape: {full_df.shape}")
+    full_df.to_csv(os.path.join(output_path, "full_dataset.csv"))
