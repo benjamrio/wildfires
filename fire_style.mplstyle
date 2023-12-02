@@ -1,0 +1,17 @@
+# Fire-Themed Style Sheet for Matplotlib
+
+axes.titlesize : 14
+axes.labelsize : 10
+lines.linewidth : 2
+lines.markersize : 5
+xtick.labelsize : 10
+ytick.labelsize : 10
+
+# Setting the background color to a light gray
+axes.facecolor : white
+
+# Setting the plot background color to white
+figure.facecolor : white
+
+# Setting a fire color palette
+axes.prop_cycle : cycler('color', ['firebrick', 'tomato', 'orangered', 'gold', 'darkorange', 'chocolate'])
